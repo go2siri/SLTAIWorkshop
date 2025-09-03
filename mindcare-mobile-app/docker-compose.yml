@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # MongoDB Database for MindCare
+  mongodb:
+    image: mongo:7.0
+    container_name: mindcare_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: mindcare_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./backend/scripts/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - mindcare_network
+
+  # MindCare Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mindcare_backend
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGODB_URI=mongodb://admin:password@mongodb:27017/mindcare_db?authSource=admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - mindcare_network
+    env_file:
+      - ./backend/.env
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7.2-alpine
+    container_name: mindcare_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mindcare_network
+    command: redis-server --appendonly yes
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  mindcare_network:
+    driver: bridge
